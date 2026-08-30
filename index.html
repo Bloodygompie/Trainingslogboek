@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Trainingslog">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Trainingslogboek</title>
+<style>
+:root{
+  --bg:#f5f5f7; --card:#fff; --text:#111827; --muted:#6b7280; --border:#e5e7eb;
+  --accent:#111827; --good:#0f766e; --warn:#b45309; --bad:#b91c1c;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:760px;margin:auto;padding:14px 14px 40px}
+h1{font-size:26px;margin:6px 0 2px}.sub{color:var(--muted);font-size:14px;margin-bottom:14px}
+.topbar{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.person{flex:1;min-width:120px}.person button{width:100%}
+button{font:inherit;min-height:44px;border:0;border-radius:12px;padding:10px 13px;background:#e5e7eb;color:var(--text);font-weight:650}
+button.primary,button.active{background:var(--accent);color:#fff}
+button.good{background:var(--good);color:#fff}
+button.ghost{background:transparent;border:1px solid var(--border)}
+button:disabled{opacity:.45}
+.nav{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:10px 0 16px}
+.nav button{font-size:13px}
+.view{display:none}.view.active{display:block}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;margin:10px 0}
+.exercise-head{display:grid;grid-template-columns:54px 1fr;gap:12px;align-items:center}
+.exercise-head svg{width:54px;height:54px}
+.ex-title{font-weight:750;font-size:17px}.meta{font-size:13px;color:var(--muted);margin-top:3px}
+.setrow{display:grid;grid-template-columns:26px 1fr 1fr 1fr;gap:7px;align-items:end;margin-top:10px}
+label{font-size:11px;color:var(--muted)}
+input,select,textarea{width:100%;font:inherit;font-size:16px;border:1px solid #d1d5db;border-radius:10px;background:#fff;color:var(--text);padding:8px;min-height:44px}
+textarea{min-height:82px}
+.small{font-size:12px;color:var(--muted)}
+.suggest{margin-top:10px;padding:10px;border-radius:10px;background:#f3f4f6;font-size:13px}
+.badge{display:inline-block;border-radius:999px;padding:4px 8px;background:#f3f4f6;font-size:12px;margin-right:5px}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:#f9fafb;border-radius:12px;padding:10px;text-align:center}
+.stat b{display:block;font-size:19px}
+.history-item{padding:11px 0;border-bottom:1px solid var(--border)}
+.history-item:last-child{border-bottom:0}
+.chart-wrap{background:#fff;border:1px solid var(--border);border-radius:16px;padding:10px;margin-top:10px}
+canvas{width:100%;height:220px;display:block}
+.empty{padding:28px 10px;text-align:center;color:var(--muted)}
+.footer-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.footer-actions button{flex:1}
+@media (max-width:430px){.setrow{grid-template-columns:24px 1fr 1fr 1fr}.summary{grid-template-columns:1fr 1fr 1fr}.exercise-head{grid-template-columns:48px 1fr}.exercise-head svg{width:48px;height:48px}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Trainingslogboek</h1>
+  <div class="sub">Voor jullie twee. Gewicht, reps, voortgang en automatisch advies voor de volgende keer.</div>
+
+  <div class="topbar">
+    <div class="person"><button id="p-norman" class="active">Jij</button></div>
+    <div class="person"><button id="p-zoon">Je zoon</button></div>
+  </div>
+
+  <div class="nav">
+    <button id="nav-train" class="active">Training</button>
+    <button id="nav-history">Historie</button>
+    <button id="nav-progress">Voortgang</button>
+  </div>
+
+  <section id="view-train" class="view active">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+        <div>
+          <div style="font-weight:750">Full-body starttraining</div>
+          <div class="small">Rust ± 1,5–2,5 min tussen eigen sets. Leg press mag 2–3 min.</div>
+        </div>
+        <button id="start-workout" class="primary">Nieuwe training</button>
+      </div>
+    </div>
+    <div id="workout-area"></div>
+  </section>
+
+  <section id="view-history" class="view">
+    <div class="card">
+      <div style="font-weight:750;margin-bottom:4px">Trainingen</div>
+      <div class="small">Alle afgeronde trainingen op deze iPhone.</div>
+    </div>
+    <div id="history-area"></div>
+  </section>
+
+  <section id="view-progress" class="view">
+    <div class="card">
+      <label for="exercise-select" style="display:block;margin-bottom:6px">Oefening</label>
+      <select id="exercise-select"></select>
+      <div class="small" style="margin-top:8px">Grafiek gebruikt het zwaarste gewicht dat je op die trainingsdag netjes hebt uitgevoerd.</div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="progress-chart" width="680" height="220"></canvas>
+      <div id="progress-empty" class="empty" style="display:none">Nog te weinig trainingen voor een grafiek.</div>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+const $=s=>document.querySelector(s);
+const personNames={norman:"Jij",zoon:"Je zoon"};
+const plans={
+ norman:[
+  ["leg_press","Leg press",3,10,50],
+  ["leg_curl","Leg curl",3,10,20],
+  ["leg_extension","Leg extension",2,10,20],
+  ["chest_press","Chest press",3,10,20],
+  ["lat_pulldown","Lat pulldown",3,10,25],
+  ["seated_row","Seated row",2,10,25],
+  ["back_extension","Back extension",2,10,0]
+ ],
+ zoon:[
+  ["leg_press","Leg press",2,12,27.5],
+  ["leg_curl","Leg curl",2,12,12.5],
+  ["leg_extension","Leg extension",2,12,12.5],
+  ["chest_press","Chest press",2,12,12.5],
+  ["lat_pulldown","Lat pulldown",2,12,17.5],
+  ["seated_row","Seated row",2,12,17.5],
+  ["back_extension","Back extension",2,10,0]
+ ]
+};
+const icons={
+leg_press:`<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="42" y="8" width="12" height="43" rx="3" fill="#d1d5db"/><path d="M18 44h24" stroke="#111827" stroke-width="4"/><circle cx="22" cy="25" r="5" fill="#111827"/><path d="M25 30l10 8 9-13M35 38l-10 8M34 37l9 8" stroke="#111827" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`,
+leg_curl:`<svg viewBox="0 0 64 64"><rect x="9" y="35" width="40" height="9" rx="4" fill="#d1d5db"/><circle cx="18" cy="24" r="5" fill="#111827"/><path d="M22 28l12 8 13 0M47 36l7-8" stroke="#111827" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="55" cy="25" r="4" fill="#9ca3af"/></svg>`,
+leg_extension:`<svg viewBox="0 0 64 64"><rect x="18" y="18" width="8" height="28" rx="3" fill="#d1d5db"/><rect x="20" y="37" width="23" height="7" rx="3" fill="#d1d5db"/><circle cx="27" cy="19" r="5" fill="#111827"/><path d="M29 24l5 13 13 6M47 43l9 0" stroke="#111827" stroke-width="4" fill="none" stroke-linecap="round"/><circle cx="57" cy="43" r="4" fill="#9ca3af"/></svg>`,
+chest_press:`<svg viewBox="0 0 64 64"><rect x="14" y="17" width="7" height="33" rx="3" fill="#d1d5db"/><circle cx="27" cy="22" r="5" fill="#111827"/><path d="M27 28v16M27 32l13-8M27 32l13 8M40 24h10M40 40h10" stroke="#111827" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`,
+lat_pulldown:`<svg viewBox="0 0 64 64"><path d="M12 11h40" stroke="#9ca3af" stroke-width="4"/><circle cx="32" cy="26" r="5" fill="#111827"/><path d="M32 31v19M32 34L18 20M32 34l14-14M25 50h14" stroke="#111827" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`,
+seated_row:`<svg viewBox="0 0 64 64"><rect x="10" y="43" width="26" height="7" rx="3" fill="#d1d5db"/><circle cx="26" cy="27" r="5" fill="#111827"/><path d="M28 32l6 12M32 34l13-4M34 44l-10 6M34 44l10 6M45 30h10" stroke="#111827" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`,
+back_extension:`<svg viewBox="0 0 64 64"><path d="M12 48h40" stroke="#9ca3af" stroke-width="5"/><circle cx="24" cy="25" r="5" fill="#111827"/><path d="M27 29l12 10M39 39l10 8M39 39l-9 9M27 29l-9 12" stroke="#111827" stroke-width="4" fill="none" stroke-linecap="round"/></svg>`
+};
+
+let current="norman";
+let activeWorkout=null;
+let store=JSON.parse(localStorage.getItem("trainingslog-v2")||'{"history":{"norman":[],"zoon":[]}}');
+if(!store.history) store={history:{norman:[],zoon:[]}};
+if(!store.history.norman) store.history.norman=[];
+if(!store.history.zoon) store.history.zoon=[];
+
+function save(){localStorage.setItem("trainingslog-v2",JSON.stringify(store))}
+function switchPerson(p){
+ current=p; activeWorkout=null;
+ $("#p-norman").classList.toggle("active",p==="norman");
+ $("#p-zoon").classList.toggle("active",p==="zoon");
+ renderWorkout(); renderHistory(); populateExerciseSelect(); drawProgress();
+}
+$("#p-norman").addEventListener("click",()=>switchPerson("norman"));
+$("#p-zoon").addEventListener("click",()=>switchPerson("zoon"));
+
+function showView(v){
+ ["train","history","progress"].forEach(n=>{
+  $("#view-"+n).classList.toggle("active",n===v);
+  $("#nav-"+n).classList.toggle("active",n===v);
+ });
+ if(v==="progress") drawProgress();
+}
+$("#nav-train").onclick=()=>showView("train");
+$("#nav-history").onclick=()=>{renderHistory();showView("history")};
+$("#nav-progress").onclick=()=>{populateExerciseSelect();showView("progress")};
+
+function recommendation(exId, targetReps, fallback){
+ const hist=store.history[current].filter(w=>w.exercises && w.exercises[exId]);
+ if(!hist.length) return {kg:fallback, text:fallback===0?"Begin zonder extra gewicht / heel licht.":"Startvoorstel op basis van ons beginschema."};
+ const last=hist[hist.length-1].exercises[exId];
+ const valid=last.sets.filter(s=>Number(s.reps)>0 && s.kg!=="" && Number.isFinite(Number(s.kg)));
+ if(!valid.length) return {kg:fallback,text:"Gebruik voorlopig hetzelfde startgewicht."};
+ const allHit=valid.every(s=>Number(s.reps)>=targetReps);
+ const avgEff=valid.reduce((a,s)=>a+Number(s.effort||7),0)/valid.length;
+ const maxKg=Math.max(...valid.map(s=>Number(s.kg)));
+ let next=maxKg, text="Zelfde gewicht aanhouden.";
+ if(allHit && avgEff<=7){ next=Math.round((maxKg+2.5)*2)/2; text="Alle reps gehaald met reserve: probeer +2,5 kg."; }
+ else if(!allHit || avgEff>=9){ next=Math.max(0,Math.round((maxKg-2.5)*2)/2); text="Vorige keer erg zwaar / reps gemist: iets lichter proberen."; }
+ return {kg:next,text};
+}
+
+function startWorkout(){
+ activeWorkout={date:new Date().toISOString(),exercises:{},notes:""};
+ plans[current].forEach(([id,name,sets,reps,start])=>{
+   const rec=recommendation(id,reps,start);
+   activeWorkout.exercises[id]={name,targetReps:reps,sets:Array.from({length:sets},()=>({kg:rec.kg===0?"":rec.kg,reps:"",effort:""}))};
+ });
+ renderWorkout();
+}
+$("#start-workout").addEventListener("click",startWorkout);
+
+function renderWorkout(){
+ const area=$("#workout-area");
+ if(!activeWorkout){
+   area.innerHTML=`<div class="empty">Tik op <b>Nieuwe training</b> wanneer jullie beginnen. De voorgestelde gewichten worden automatisch ingevuld.</div>`;
+   return;
+ }
+ area.innerHTML="";
+ plans[current].forEach(([id,name,sets,target,start])=>{
+   const ex=activeWorkout.exercises[id];
+   const rec=recommendation(id,target,start);
+   const card=document.createElement("div"); card.className="card";
+   card.innerHTML=`<div class="exercise-head">${icons[id]}<div><div class="ex-title">${name}</div><div class="meta">${sets} sets × ${target} reps</div></div></div>
+   <div class="suggest"><b>Volgende gewicht:</b> ${rec.kg===0?"licht / lichaamsgewicht":rec.kg+" kg"} · ${rec.text}</div>`;
+   ex.sets.forEach((s,i)=>{
+     const row=document.createElement("div");row.className="setrow";
+     row.innerHTML=`<div style="padding-bottom:12px;font-weight:700">${i+1}</div>
+     <label>kg<input type="number" step="0.5" min="0" value="${s.kg}"></label>
+     <label>reps<input type="number" step="1" min="0" max="100" value="${s.reps}"></label>
+     <label>zwaar 1–10<input type="number" step="1" min="1" max="10" value="${s.effort}"></label>`;
+     const ins=row.querySelectorAll("input");
+     ins[0].addEventListener("input",()=>s.kg=ins[0].value);
+     ins[1].addEventListener("input",()=>s.reps=ins[1].value);
+     ins[2].addEventListener("input",()=>s.effort=ins[2].value);
+     card.appendChild(row);
+   });
+   area.appendChild(card);
+ });
+ const finish=document.createElement("div");finish.className="card";
+ finish.innerHTML=`<label style="display:block;margin-bottom:6px">Notities</label><textarea id="workout-notes" placeholder="Bijv. leg press te licht, knie voelde goed, machine stond op stand 4..."></textarea>
+ <div class="footer-actions"><button id="cancel-workout" class="ghost">Annuleren</button><button id="finish-workout" class="good">Training opslaan</button></div>`;
+ area.appendChild(finish);
+ $("#workout-notes").value=activeWorkout.notes||"";
+ $("#workout-notes").oninput=e=>activeWorkout.notes=e.target.value;
+ $("#cancel-workout").onclick=()=>{if(confirm("Deze niet-opgeslagen training wissen?")){activeWorkout=null;renderWorkout()}};
+ $("#finish-workout").onclick=finishWorkout;
+}
+
+function finishWorkout(){
+ let completed=0,total=0;
+ Object.values(activeWorkout.exercises).forEach(ex=>ex.sets.forEach(s=>{total++;if(s.reps!==""||s.kg!==""||s.effort!=="")completed++}));
+ if(completed===0){alert("Vul eerst minstens één set in.");return}
+ activeWorkout.date=new Date().toISOString();
+ store.history[current].push(JSON.parse(JSON.stringify(activeWorkout)));
+ save(); activeWorkout=null;
+ renderWorkout(); renderHistory(); populateExerciseSelect();
+ alert("Training opgeslagen!");
+}
+
+function fmtDate(iso){
+ const d=new Date(iso);
+ return new Intl.DateTimeFormat("nl-NL",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(d);
+}
+function renderHistory(){
+ const a=$("#history-area"), hist=[...store.history[current]].reverse();
+ if(!hist.length){a.innerHTML=`<div class="empty">Nog geen opgeslagen trainingen voor ${personNames[current].toLowerCase()}.</div>`;return}
+ a.innerHTML="";
+ hist.forEach((w,revIdx)=>{
+   const realIdx=store.history[current].length-1-revIdx;
+   let sets=0,volume=0;
+   Object.values(w.exercises||{}).forEach(ex=>ex.sets.forEach(s=>{
+     if(Number(s.reps)>0){sets++;volume+=(Number(s.kg)||0)*Number(s.reps)}
+   }));
+   const c=document.createElement("div"); c.className="card";
+   c.innerHTML=`<div class="history-item"><div style="font-weight:750">${fmtDate(w.date)}</div>
+   <div style="margin-top:7px"><span class="badge">${sets} sets</span><span class="badge">${Math.round(volume)} kg volume</span></div>
+   ${w.notes?`<div class="small" style="margin-top:8px">${escapeHtml(w.notes)}</div>`:""}
+   <div class="footer-actions"><button class="ghost delete">Verwijderen</button></div></div>`;
+   c.querySelector(".delete").onclick=()=>{if(confirm("Deze training verwijderen?")){store.history[current].splice(realIdx,1);save();renderHistory();drawProgress()}};
+   a.appendChild(c);
+ });
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]))}
+
+function populateExerciseSelect(){
+ const sel=$("#exercise-select"), old=sel.value; sel.innerHTML="";
+ plans[current].forEach(([id,name])=>{const o=document.createElement("option");o.value=id;o.textContent=name;sel.appendChild(o)});
+ if([...sel.options].some(o=>o.value===old)) sel.value=old;
+ sel.onchange=drawProgress;
+}
+
+function drawProgress(){
+ const canvas=$("#progress-chart"), ctx=canvas.getContext("2d"), id=$("#exercise-select").value || plans[current][0][0];
+ const points=[];
+ store.history[current].forEach(w=>{
+   const ex=w.exercises?.[id]; if(!ex)return;
+   const vals=ex.sets.filter(s=>Number(s.reps)>0 && s.kg!=="" && Number.isFinite(Number(s.kg))).map(s=>Number(s.kg));
+   if(vals.length) points.push({date:new Date(w.date),kg:Math.max(...vals)});
+ });
+ const empty=$("#progress-empty");
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ if(points.length<1){empty.style.display="block";return}else empty.style.display="none";
+ const W=canvas.width,H=canvas.height,pad={l:45,r:15,t:18,b:38};
+ const vals=points.map(p=>p.kg), min=Math.max(0,Math.min(...vals)-5), max=Math.max(min+5,Math.max(...vals)+5);
+ ctx.strokeStyle="#d1d5db";ctx.lineWidth=1;ctx.font="12px -apple-system";ctx.fillStyle="#6b7280";
+ for(let i=0;i<5;i++){
+   const y=pad.t+(H-pad.t-pad.b)*i/4, val=max-(max-min)*i/4;
+   ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+   ctx.fillText(Math.round(val)+" kg",4,y+4);
+ }
+ const x=i=>points.length===1?(pad.l+W-pad.r)/2:pad.l+(W-pad.l-pad.r)*i/(points.length-1);
+ const y=v=>pad.t+(max-v)*(H-pad.t-pad.b)/(max-min);
+ ctx.strokeStyle="#111827";ctx.lineWidth=3;ctx.beginPath();
+ points.forEach((p,i)=>{const xx=x(i),yy=y(p.kg);i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy)});ctx.stroke();
+ points.forEach((p,i)=>{ctx.fillStyle="#111827";ctx.beginPath();ctx.arc(x(i),y(p.kg),5,0,Math.PI*2);ctx.fill()});
+ const first=points[0],last=points[points.length-1];
+ ctx.fillStyle="#6b7280";ctx.fillText(new Intl.DateTimeFormat("nl-NL",{day:"2-digit",month:"2-digit"}).format(first.date),pad.l,H-12);
+ if(points.length>1){
+   const txt=new Intl.DateTimeFormat("nl-NL",{day:"2-digit",month:"2-digit"}).format(last.date);
+   ctx.fillText(txt,W-pad.r-40,H-12);
+ }
+}
+
+populateExerciseSelect();renderWorkout();renderHistory();drawProgress();
+if("serviceWorker" in navigator) navigator.serviceWorker.register("./service-worker.js").catch(()=>{});
+})();
+</script>
+</body>
+</html>
